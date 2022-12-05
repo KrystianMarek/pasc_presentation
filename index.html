@@ -197,10 +197,11 @@ Later on transformed into a webservice.
                 <textarea data-template>
 ## Flows
 ---
-#### All in one
+### All in one
 ```mermaid
 flowchart TB
     ansible-->baseConfig
+    ansible-->dockerFarm
     op_pipeline-->deployment
     dev_pipeline-->deployment
     seed-->catalog
@@ -242,13 +243,148 @@ flowchart TB
     end
 ```
 ---
-## Slide C
+### trigger
+```mermaid
+flowchart TB
+    webhook_push-->router
+    webhook_mr-->router
+    router-->sre
+    router-->dev
+
+    subgraph gitlab
+    webhook_push
+    webhook_mr
+    end
+    subgraph trigger
+    router
+    end
+    subgraph sre [SRE pipeline]
+    end
+    subgraph dev [DEV pipeline]
+    end
+```
+---
+## SRE pipeline
+- Looks for the jenkins/*.dockerfile builds them
+- Runs code analysis tools for Product Security
                 </textarea>
               </section>
           </section>
         </section>
         <section>
           <section data-markdown>
+            <textarea data-template>
+## Pipeline example
+```groovy
+podTemplate(yaml: """
+  containers:
+    - name: gradle
+      image: nexus.corp.com/bumblebee-build-bc:1336a6bb98806b7f322cf883af77b712ce576ca9
+""") {
+    node(POD_LABEL) {
+        container('gradle') {
+            checkout()
+            stage('version') {
+                sh('cat VERSION')
+            }
+            withMavenRepository.gradle {
+                stage("build") {
+                    try {
+                        sh('gradle clean build')
+                    } finally {
+                        junit testResults: 'build/test-results/test/*.xml'
+                    }
+                }
+                withGitLab.git {
+                    stage("Test with jenkins-instance-a project-catalog") {
+                        sh("git clone --branch master ${env.GITLAB_URL}/pipeline-as-code/project-catalogs/jenkins-instance-a.git")
+                        sh("./bumblebee.sh project-catalog validate-project-catalog jenkins-instance-a")
+                    }
+                    stage("Project Catalog compatibility test - jenkins-instance-b") {
+                        sh("git clone --branch master ${env.GITLAB_URL}/pipeline-as-code/project-catalogs/jenkins-instance-b.git")
+                        sh("./bumblebee.sh project-catalog validate-project-catalog jenkins-instance-b")
+                    }
+                    stage("Project Catalog compatibility test - jenkins-instance-c") {
+                        sh("git clone --branch master ${env.GITLAB_URL}/pipeline-as-code/project-catalogs/jenkins-instance-c.git")
+                        sh("./bumblebee.sh project-catalog validate-project-catalog jenkins-instance-c")
+                    }
+                }
+                exceptForMergeRequest {
+                    String buildVersion = "";
+                    stage("publish") {
+                        sh("gradle publish -x test")
+                        buildVersion = sh(script: "gradle getVersion -q", returnStdout: true).trim()
+                    }
+                    withGitLab.git {
+                        updateDependentProject(buildVersion, "bulkhead", "https://git.corp.com/sre/jenkins/bulkhead")
+                    }
+                }
+            }
+        }
+    }
+}
+```
+---
+```groovy
+stage('build') {
+    podTemplate(yaml: """
+  containers:
+    - name: relative-build-container
+      image: ${relativeBuildContainer}
+""") {
+        node(POD_LABEL) {
+            container('relative-build-container') {
+                checkout(scm)
+
+                stage('Running maven') {
+                    withMavenRepository.maven {
+                        withEnv([MAVEN_OPTS]) {
+                            sh("mvn install ${commonOptions} -U")
+                            sh("mvn hpi:custom-war ${commonOptions}")
+                            sh("mvn hpi:hpi ${commonOptions}")
+                        }
+                    }
+                }
+                String appDockerTag = getImageTag()
+                exceptForMergeRequest {
+                    stage('docker') {
+                        withDockerRegistry.withLegacyNexus {
+                            sh("""
+docker build --no-cache --rm -t ${appDockerTag} .
+docker push ${appDockerTag}
+""")
+                        }
+                    }
+                    stage('deploy') {
+                        if ("master".equals(env.BRANCH_NAME)) {
+                            build job: 'deploy', parameters: [
+                                    string(name: 'GITLAB_TRIGGER_DATA', value: env.GITLAB_TRIGGER_DATA),
+                                    string(name: 'MASTER_IMAGE', value: appDockerTag)
+                            ], wait: true
+                        } else if ("development".equals(env.BRANCH_NAME)) {
+                            build job: 'deploy', parameters: [
+                                    string(name: 'GITLAB_TRIGGER_DATA', value: env.GITLAB_TRIGGER_DATA),
+                                    string(name: 'DEVELOPMENT_IMAGE', value: appDockerTag)
+                            ], wait: true
+                        } else {
+                            echo """Please test on your dev cluster
+Your Jenkins Master docker is
+${appDockerTag}
+"""
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+            </textarea>
+          </section>
+        </section>
+          <section>
+              <section data-markdown>
             <textarea data-template>
               ## Slide A
               A paragraph with some text and a [link](http://hakim.se).
@@ -257,8 +393,8 @@ flowchart TB
               ---
               ## Slide C
             </textarea>
+              </section>
           </section>
-        </section>
       </div>
     </div>
     <script type="module" src="/main.js"></script>
