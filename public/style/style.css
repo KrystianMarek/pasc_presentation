@@ -1,0 +1,10 @@
+div.image {
+    max-width: 50%;
+    margin: auto;
+}
+
+code.mermaid {
+    margin: auto;
+    width: 1000px;
+    height: 700px;
+}

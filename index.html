@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/public/img/vite.svg" />
+    <link rel="stylesheet" href="public/style/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Walkthrough</title>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+          <section data-markdown>
+            <textarea data-template>
+              ## CI migration
+              Platform Engineering perspective
+            </textarea>
+          </section>
+          <section>
+              <section data-markdown>
+                <textarea data-template>
+## Context
+---
+## Human factor
+- Everyone uses Jenkins (Build Pipeline Plugin)
+![Build Pipeline](public/img/build_pipeline.png)
+- Dedicated team (CRE ~10ppl) manages Jenkins and its pipelines
+---
+- Dev teams are frustrated, because they do not have admin access, they relay on CRE to make changes
+- No version control
+- Tribal knowledge
+- Dependence on other teams
+---
+## Technical limitations
+- Number of legacy plugins required
+- System has to run on prem, cloud unavailable
+- System has to be *scalable*
+- Jenkins plugins offer limited support for [JCasC](https://plugins.jenkins.io/configuration-as-code/) plugin
+                </textarea>
+              </section>
+          </section>
+          <section>
+              <section data-markdown>
+                <textarea data-template>
+## Design goals
+- Design for change
+- Design for self service
+- Provide feature parity with legacy system, then exceed
+- Improve security
+- Improve maintainability - *ideally 0 maintenance*
+- Simple developer experience
+---
+## Design Challenges
+- No engineers to spare (initially)
+- Deliver ASAP
+---
+## Definition of done
+- Lower maintenance, more capable than the legacy setup
+- System is up, serving production workload
+- Developers from 3 offices across the globe are trained to use the solution
+- 5 Major projects migrated
+                </textarea>
+              </section>
+          </section>
+          <section>
+              <section data-markdown>
+                <textarea data-template>
+## Tech stack
+- Jenkins
+- GitLab
+- Nexus, Artifactory
+- SonarQube, NexusIQ, TwistLock
+- Kubernetes (Rancher On-Prem)
+- Vault
+---
+## Jenkins pros
+- Battle tested
+- Great number of plugins
+---
+## Jenkins cons
+- Single master, master scalability difficult
+- Great number of plugins
+- Complex plugin API
+- GUI oriented configuration
+---
+## Most important plugins
+- [Pipeline](https://plugins.jenkins.io/workflow-aggregator/)
+- [Job DSL](https://github.com/jenkinsci/job-dsl-plugin)
+- [Kubernetes](https://plugins.jenkins.io/kubernetes/)
+                </textarea>
+              </section>
+          </section>
+          <section>
+              <section>
+                  <p>Autobots to the rescue</p>
+                  <div class="image"><img src="public/img/autobot.webp" alt="autobots"></div>
+              </section>
+              <section data-markdown>
+                <textarea data-template>
+### allspark
+Ansible set of plays orchestrating:
+- VM management
+- K8s installation
+- - [Rancher](https://www.rancher.com/)
+---
+- K8s configuration
+- - [MetalLB](https://metallb.universe.tf/)
+- - [Cert-Manager](https://cert-manager.io/)
+- - [external-dns](https://github.com/kubernetes-sigs/external-dns) (Infoblox)
+- Cluster *scaling* a.k.a 'automated node addition'
+---
+### optimus prime
+- Jenkins plugin, used to configure remaining plugins, pipeline that produces dockerized master.
+- Prepopulated set of jobs
+- - trigger - git webhook router
+- - seed - [job generator - Job DSL Plugin](https://github.com/jenkinsci/job-dsl-plugin)
+---
+### ratchet
+Git repository holding a folder structure with yml config files. User configuration as code interface for
+[Job DSL Plugin](https://github.com/jenkinsci/job-dsl-plugin), and remaining plugins, compatible with Job DSL Plugin.
+```shell
+❯ tree
+.
+└── catalog
+    ├── team_a
+    │       ├── project_green.yml
+    │       └── project_yellow.yml
+    └── team_b
+        └── project_silver.yml
+```
+---
+project_green.yml
+```yml
+job:
+  gitlab: <gitlab_url>
+  artifactory:
+    project: team_a
+  triggers:
+    cron:
+  notifiers:
+    email:
+    teams:
+  secrets:
+    vault:
+      SECRET_NAME: vault/path
+  admin:
+    - admin ID
+```
+---
+### bulkhead
+[Jenkins Shared Library](https://www.jenkins.io/doc/book/pipeline/shared-libraries/) providing all sorts of plugin wrappers
+```groovy
+withMavenRepository.gradle {
+   //replaces project repositories to corporate ones
+}
+```
+```groovy
+stage('name of stage') {
+   //provides a wrapper for native 'stage'
+   //to hide GitLab integration
+}
+```
+```groovy
+asPipelineAdmin {
+   //Code executes only if causer (via commit/button)
+   //was listed in project configuration
+}
+```
+---
+```groovy
+//stage.groovy
+def call(String name, Closure closure) {
+    println("Using override for stage: '${name}'")
+    updateGitlab(name, BuildState.running)
+    def result = steps.stage(name) {
+        try {
+            closure.call()
+        } catch (Exception error) {
+            updateGitlab(name, BuildState.failed)
+            throw error
+        }
+    }
+    updateGitlab(name, BuildState.success)
+    return result
+}
+```
+---
+### bumblebee
+Admin tool - set of wrappers for API clients, data models for the **ratchet** GitOps configuration interface.
+Initially implemented as a java library with CLI capabilities.
+Later on transformed into a webservice.
+                </textarea>
+              </section>
+          </section>
+          <section>
+              <section data-markdown>
+                <textarea data-template>
+## Flows
+---
+#### All in one
+```mermaid
+flowchart TB
+    ansible-->baseConfig
+    op_pipeline-->deployment
+    dev_pipeline-->deployment
+    seed-->catalog
+    catalog-->seed
+    wrapper-->API
+    webhook-->trigger
+    dev_pipeline-->HOF
+    LLF-->wrapper
+    dev_jobs-->dev_pipeline
+
+    subgraph allspark
+    ansible
+    end
+    subgraph optimus_prime [optimus prime]
+    op_pipeline
+    seed-->dev_jobs
+    trigger-->dev_jobs
+    trigger-->op_pipeline
+    end
+    subgraph ratchet
+    catalog
+    end
+    subgraph bumblebee
+    wrapper
+    end
+    subgraph bulkhead
+    HOF-->LLF
+    end
+    subgraph gitlab
+    API
+    webhook
+    end
+    subgraph k8s [k8s cluster]
+    baseConfig
+    deployment
+    end
+    subgraph devPipeline [dev pipeline]
+    dev_pipeline
+    end
+```
+---
+## Slide C
+                </textarea>
+              </section>
+          </section>
+        </section>
+        <section>
+          <section data-markdown>
+            <textarea data-template>
+              ## Slide A
+              A paragraph with some text and a [link](http://hakim.se).
+              ---
+              ## Slide B
+              ---
+              ## Slide C
+            </textarea>
+          </section>
+        </section>
+      </div>
+    </div>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>
