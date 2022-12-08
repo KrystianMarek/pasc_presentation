@@ -207,14 +207,15 @@ job:
                 <pre>
                     <code class="language-java">
 withMavenRepository.gradle {
-   //replaces project repositories to corporate ones
+    //Replaces dev defined repositories with corp ones
+    //In case of repositories that require auth, injects credentials
 }
                     </code>
                 </pre>
                 <pre>
                     <code class="language-java">
 stage('name of stage') {
-   //provides a wrapper for native 'stage'
+   //provides a wrapper for native jenkins pipeline 'stage'
    //to hide GitLab integration
 }
                     </code>
@@ -498,6 +499,9 @@ containers:
                     </code>
                 </pre>
             </section>
+        </section>
+        <section>
+            <h2>Questions?</h2>
         </section>
     </div>
 </div>
