@@ -8,3 +8,10 @@ div.image {
     overflow-x: hidden !important;
     height: 800px;
 }
+
+.mermaid svg {
+    max-width: 100%;
+    height: auto;
+    margin-left: 25%;
+    margin-right: auto;
+}

@@ -19,7 +19,7 @@
                 <h2>Context</h2>
             </section>
             <section>
-                <h2>Human factor</h2>
+                <h2>Legacy system</h2>
                 <ul>
                     <li>
                         Everyone uses Jenkins (Build Pipeline Plugin)
@@ -35,15 +35,16 @@
                     </li>
                     <li>No version control</li>
                     <li>Tribal knowledge</li>
+                    <li>Misconfigured services, like docker via http</li>
                     <li>Dependence on other teams</li>
                 </ul>
             </section>
             <section>
                 <h2>Technical limitations</h2>
                 <ul>
-                    <li>Number of legacy plugins required</li>
+                    <li>Org used Jenkins, we need to use Jenkins</li>
                     <li>System has to run on prem, cloud unavailable</li>
-                    <li>System has to be *scalable*</li>
+                    <li>Number of legacy plugins required</li>
                     <li>Jenkins plugins offer limited support for <a
                             href="https://plugins.jenkins.io/configuration-as-code">JCasC</a> plugin
                     </li>
@@ -57,6 +58,7 @@
                     <li>Design for change</li>
                     <li>Design for self service</li>
                     <li>Provide feature parity with legacy system, then exceed</li>
+                    <li>System has to be *scalable*</li>
                     <li>Improve security</li>
                     <li>Improve maintainability - *ideally 0 maintenance*</li>
                     <li>Simple developer experience</li>
@@ -65,8 +67,15 @@
             <section>
                 <h2>Design Challenges</h2>
                 <ul>
+                    <li>Has to work on-prem and scale</li>
                     <li>No engineers to spare (initially)</li>
                     <li>Deliver ASAP</li>
+                    <li>Dependency on other teams</li>
+                    <ul>
+                        <li>Vault</li>
+                        <li>Sonatype suite</li>
+                        <li>VMs</li>
+                    </ul>
                 </ul>
             </section>
             <section>
@@ -137,6 +146,7 @@
                         <ul>
                             <li><a href="https://metallb.universe.tf/">MetalLB</a></li>
                             <li><a href="https://github.com/kubernetes-sigs/external-dns">external-dns (infoblox)</a></li>
+                            <li><a href="https://cert-manager.io/">cert-manager</a></li>
                         </ul>
                     </li>
                     <li>Cluster *scaling* a.k.a 'automated node addition'</li>
@@ -154,6 +164,17 @@
                         </ul>
                     </li>
                 </ul>
+                <pre>
+                    <code class="language-java">
+// init.groovy.d/boot.groovy
+try {
+    def optimusPrime = OptimusPrime.getInstance()
+    optimusPrime.configure()
+} catch (Exception error) {
+    //Redacted
+}
+                    </code>
+                </pre>
             </section>
             <section>
                 <h2>ratchet</h2>
@@ -201,9 +222,9 @@ job:
             </section>
             <section>
                 <h3>bulkhead</h3>
-                <a href="https://www.jenkins.io/doc/book/pipeline/shared-libraries">Jenkins Shared Library</a>
-                providing all sorts
-                of plugin wrappers
+                <p>Provides <a href="https://www.jenkins.io/doc/book/pipeline/shared-libraries">Jenkins Shared Library</a> closures to be used in pipeline,
+                to simplify the pipeline usage, hides implementation/integration complexity.</p>
+                <p>Provides high and low level abstractions and their documentation via <a href="https://www.mkdocs.org/">MkDocs</a></p>
                 <pre>
                     <code class="language-java">
 withMavenRepository.gradle {
@@ -252,10 +273,8 @@ def call(String name, Closure closure) {
             </section>
             <section>
                 <h2>bumblebee</h2>
-                <p>Admin tool - set of wrappers for API clients, data models for the **ratchet** GitOps configuration
-                    interface.
-                    Initially implemented as a java library with CLI capabilities.
-                    Later on transformed into a webservice.</p>
+                <p>Admin tool - set of wrappers for API clients, data models for the <b><i>ratchet</i></b> GitOps configuration interface.</p>
+                <p>Initially implemented as a java library with CLI capabilities. Later on transformed into a webservice.</p>
             </section>
         </section>
         <section>
@@ -264,7 +283,7 @@ def call(String name, Closure closure) {
             </section>
             <section>
                 <h2>All in one</h2>
-                <pre class="mermaid">
+<pre class="mermaid center">
 flowchart TB
     ansible-->baseConfig
     ansible-->dockerFarm
@@ -307,11 +326,11 @@ flowchart TB
     subgraph devPipeline [dev pipeline]
     dev_pipeline
     end
-                </pre>
+</pre>
             </section>
             <section>
                 <h2>trigger</h2>
-                <pre class="mermaid">
+<pre class="mermaid center">
 flowchart TB
     webhook_push-->router
     webhook_mr-->router
@@ -329,13 +348,14 @@ flowchart TB
     end
     subgraph dev [DEV pipeline]
     end
-                </pre>
+</pre>
             </section>
             <section>
                 <h2>SRE pipeline</h2>
                 <ul>
-                    <li>Looks for the jenkins/*.dockerfile builds them</li>
+                    <li>Looks for the <pre><code class="language-shell">jenkins/*.dockerfile</code></pre> builds them</li>
                     <li>Runs code analysis/compliance tools for Product Security</li>
+                    <li>Automatically runs ANY SRE code on the project for compliance/statistics</li>
                 </ul>
             </section>
         </section>
@@ -495,10 +515,18 @@ containers:
         }
     }
 }
-
                     </code>
                 </pre>
             </section>
+        </section>
+        <section>
+            <h2>Summary</h2>
+            <ul>
+                <li>System ran for ~1.5 years, proudly serving about 200 performing devs, ~180 pipelines, until the management decided to migrate to GHA</li>
+                <li>Integrations should be CI independent</li>
+                <li>Maintaining a dedicated Jenkins plugin is not that simple</li>
+                <li>Documentation is the key but even you have it, people will not read it</li>
+            </ul>
         </section>
         <section>
             <h2>Questions?</h2>
