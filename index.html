@@ -5,7 +5,7 @@
     <link href="/public/img/vite.svg" rel="icon" type="image/svg+xml"/>
     <link href="public/style/style.css" rel="stylesheet">
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>Project Walkthrough</title>
+    <title>Pipeline as Code</title>
 </head>
 <body>
 <div class="reveal">
@@ -526,6 +526,11 @@ containers:
                 <li>Integrations should be CI independent</li>
                 <li>Maintaining a dedicated Jenkins plugin is not that simple</li>
                 <li>Documentation is the key but even you have it, people will not read it</li>
+                <li>Next time run on cloud</li>
+                <li>trigger and seed jobs were a bottleneck at some point, should be a plugin feature</li>
+                <li>bumblebee could be webservice from the start</li>
+                <li>define build environments via dockerfile alone, no need to keep docker image in job definition</li>
+                <li>More time? > <a href="https://dagger.io/">dagger</a> + <a href="https://docs.flyte.org/en/latest/index.html">flyte</a> + ... ?</li>
             </ul>
         </section>
         <section>
